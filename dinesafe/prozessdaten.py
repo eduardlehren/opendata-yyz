@@ -1,7 +1,10 @@
 import argparse
 import json
+import glob
+import os
 import requests
 import shutil
+import sys
 
 from datetime import datetime
 
@@ -16,13 +19,26 @@ def _generate_timestamp():
     return timestamp
 
 
+def _get_latest_file():
+    try:
+        latest_file = max(
+            glob.iglob("data_versions/*.json"),
+            key=os.path.getctime
+        )
+    except ValueError:
+        print("No file found, exiting")
+        sys.exit(1)
+    return latest_file
+
+
 def download_data():
     local_filename = f"dinesafe-{_generate_timestamp()}.json"
     with requests.get(URL, stream=True) as r:
         with open(local_filename, 'wb') as f:
             shutil.copyfileobj(r.raw, f)
+    shutil.move(local_filename, f"data_versions/{local_filename}")
     print("File downloaded")
-    return local_filename
+    return True
 
 
 def output_to_console(filename):
@@ -34,10 +50,14 @@ def output_to_console(filename):
 
 
 def run(commandopts):
-    # download_data()
+    if commandopts.get_data:
+        if download_data():
+            data_filename = _get_latest_file()
+    elif commandopts.latest_file:
+        data_filename = _get_latest_file()
 
     if commandopts.output:
-        output_to_console("dinesafe-2024-07-21.json")
+        output_to_console(data_filename)
 
 
 if __name__ == "__main__":
@@ -53,21 +73,21 @@ if __name__ == "__main__":
         dest="output",
         help="gibt Daten an die Konsole aus"
     )
-    # parser.add_argument(
-    #     "-i",
-    #     "--input-file",
-    #     action="store",
-    #     dest="input_file",
-    #     help="Input filename",
-    #     required=True
-    # )
-    # parser.add_argument(
-    #     "-t",
-    #     "--transcribe-only",
-    #     action="store_true",
-    #     dest="transcribe_only",
-    #     help="Skips summary generation and only provides a transcription"
-    # )
+    parser.add_argument(
+        "-g",
+        "--get-latest-data",
+        action="store_true",
+        dest="get_data",
+        help="Downloads the latest dataset from opendata Toronto"
+    )
+    parser.add_argument(
+        "-l",
+        "--latest-data-file",
+        action="store_true",
+        dest="latest_file",
+        help="Uses latest data file -- "
+             "prevents a new file from being downloaded"
+    )
     # parser.add_argument(
     #     "-ot",
     #     "--transcription-output",
@@ -84,4 +104,13 @@ if __name__ == "__main__":
     # )
 
     commandopts = parser.parse_args()
+
+    if commandopts.get_data and commandopts.latest_file:
+        print("Cannot use -g and -l simultaenously. Use one or the other.")
+        sys.exit(1)
+
+    if not commandopts.get_data and not commandopts.latest_file:
+        print("Must use either -g or -l, to provide a file to process")
+        sys.exit(1)
+
     run(commandopts)

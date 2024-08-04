@@ -1,3 +1,4 @@
 elasticsearch
 flake8
 requests
+pyyaml

@@ -1,0 +1,4 @@
+elasticsearch:
+  host: ELASTICSEARCH_FQDN
+  user: USERNAME
+  pass: PASSWORD
