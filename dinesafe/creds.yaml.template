@@ -1,4 +1,3 @@
 elasticsearch:
-  host: ELASTICSEARCH_FQDN
-  user: USERNAME
-  pass: PASSWORD
+  host: PROTO://FQDN:PORT
+  api_key: API_KEY

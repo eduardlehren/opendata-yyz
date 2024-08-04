@@ -5,9 +5,13 @@ import os
 import requests
 import shutil
 import sys
+import yaml
 
 from datetime import datetime
+from elasticsearch import Elasticsearch
 
+CREDS_FILE = "creds.yaml"
+ELASTICSEARCH_INDEX = "dinesafe"
 URL = "https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/" \
       "b6b4f3fb-2e2c-47e7-931d-b87d22806948/resource/" \
       "e9df9d33-727e-4758-9a84-67ebefec1453/download/Dinesafe.json"
@@ -49,6 +53,46 @@ def output_to_console(filename):
         print(json.dumps(instance, indent=2))
 
 
+def populate_elasticsearch(index, local_filename):
+    with open(CREDS_FILE, "r") as file:
+        config = yaml.safe_load(file)
+
+    es_client = Elasticsearch(
+        config["elasticsearch"]["host"],
+        api_key=config["elasticsearch"]["api_key"]
+    )
+
+    with open(local_filename, "r") as file:
+        data = json.loads(file.read())
+
+    for record in data:
+        doc = {
+            "odt_id": record["_id"],
+            "establishment_id": record["Establishment ID"],
+            "inspection_id": record["Inspection ID"],
+            "establishment_name": record["Establishment Name"],
+            "estabishment_type": record["Establishment Type"],
+            "establishment_address": record["Establishment Address"],
+            "establishment_status": record["Establishment Status"],
+            "min_inspections_per_year": record["Min. Inspections Per Year"],
+            "infraction_details": record["Infraction Details"],
+            "inspection_date": record["Inspection Date"],
+            "severity": record["Severity"],
+            "action": record["Action"],
+            "outcome": record["Outcome"],
+            "amount_fined": record["Amount Fined"],
+            "location_point": {
+                "lat": record["Latitude"],
+                "lon": record["Longitude"]
+            },
+            "unique_id": record["unique_id"]
+        }
+        resp = es_client.index(index=index, document=doc)
+        print(resp["result"])
+
+    return True
+
+
 def run(commandopts):
     if commandopts.get_data:
         if download_data():
@@ -58,6 +102,9 @@ def run(commandopts):
 
     if commandopts.output:
         output_to_console(data_filename)
+
+    if commandopts.populate_es:
+        populate_elasticsearch(ELASTICSEARCH_INDEX, data_filename)
 
 
 if __name__ == "__main__":
@@ -88,21 +135,13 @@ if __name__ == "__main__":
         help="Uses latest data file -- "
              "prevents a new file from being downloaded"
     )
-    # parser.add_argument(
-    #     "-ot",
-    #     "--transcription-output",
-    #     action="store",
-    #     dest="transcription_output",
-    #     help="Output filename for transcription"
-    # )
-    # parser.add_argument(
-    #     "-os",
-    #     "--summary-output",
-    #     action="store",
-    #     dest="summary_output",
-    #     help="Output filename for summary"
-    # )
-
+    parser.add_argument(
+        "-p",
+        "--populate-elasticsearch",
+        action="store_true",
+        dest="populate_es",
+        help="Populates elasticearch index with latest results"
+    )
     commandopts = parser.parse_args()
 
     if commandopts.get_data and commandopts.latest_file:
