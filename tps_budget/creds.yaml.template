@@ -1,0 +1,4 @@
+elasticsearch:
+  host: PROTO://FQDN:PORT
+  api_key: API_KEY
+  index: INDEX
